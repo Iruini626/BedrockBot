@@ -5,6 +5,21 @@ Description: >
 
   Sample SAM Template for BedrockBot
 Resources:
+  BedrockMessagingStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: statemachine/messaging.asl.json
+      DefinitionSubstitutions:
+        MessageBedrockFunctionArn: !GetAtt MessageBedrockFunction.Arn
+        ResponseParserFunctionArn: !GetAtt ResponseParserFunction.Arn
+        TelegramResponseFunctionArn: !GetAtt TelegramResponseFunction.Arn
+      Policies:
+      - LambdaInvokePolicy:
+          FunctionName: !Ref MessageBedrockFunction
+      - LambdaInvokePolicy:
+          FunctionName: !Ref ResponseParserFunction
+      - LambdaInvokePolicy:
+          FunctionName: !Ref TelegramResponseFunction
   StockTradingStateMachine:
     Type: AWS::Serverless::StateMachine # More info about State Machine Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-statemachine.html
     Properties:
@@ -59,6 +74,62 @@ Resources:
       Architectures:
       - x86_64
 
+  MessageBedrockFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/message_bedrock/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      # Bedrock Full Access Policy
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - bedrock:*
+          Resource: '*'
+    
+  ResponseParserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/response_parser/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+
+  TelegramResponseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/telegram_response/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+
+  MonolithFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions
+      Handler: monolith.lambda_handler
+      Runtime: python3.12
+      Architectures:
+      - x86_64
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+            - bedrock:*
+            Resource: '*'
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /
+            Method: post
+            
+
   TransactionTable:
     Type: AWS::Serverless::SimpleTable # More info about SimpleTable Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-simpletable.html
     Properties:
@@ -96,6 +167,7 @@ Outputs:
 # # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
+    Timeout: 90
     Tracing: Active
     # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
     LoggingConfig:

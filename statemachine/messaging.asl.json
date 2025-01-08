@@ -1,0 +1,51 @@
+{
+    "Comment": "A state machine that does mock stock trading.",
+    "StartAt": "Message Bedrock",
+    "States": {
+        "Message Bedrock":{
+            "Type":"Task",
+            "Resource":"${MessageBedrockFunctionArn}",
+            "Retry":[
+                {
+                    "ErrorEquals": [
+                        "States.TaskFailed"
+                    ],
+                    "IntervalSeconds": 15,
+                    "MaxAttempts": 1,
+                    "BackoffRate": 1.5
+                }
+            ],
+            "Next": "Response Parser"
+        },
+        "Response Parser":{
+            "Type":"Task",
+            "Resource":"${ResponseParserFunctionArn}",
+            "Retry":[
+                {
+                    "ErrorEquals": [
+                        "States.TaskFailed"
+                    ],
+                    "IntervalSeconds": 15,
+                    "MaxAttempts": 1,
+                    "BackoffRate": 1.5
+                }
+            ],
+            "Next":"Telegram Response"
+        },
+        "Telegram Response":{
+            "Type":"Task",
+            "Resource":"${TelegramResponseFunctionArn}",
+            "Retry":[
+                {
+                    "ErrorEquals": [
+                        "States.TaskFailed"
+                    ],
+                    "IntervalSeconds": 15,
+                    "MaxAttempts": 1,
+                    "BackoffRate": 1.5
+                }
+            ],
+            "End": true
+        }
+    }
+}
