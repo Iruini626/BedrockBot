@@ -5,114 +5,11 @@ Description: >
 
   Sample SAM Template for BedrockBot
 Resources:
-  BedrockMessagingStateMachine:
-    Type: AWS::Serverless::StateMachine
-    Properties:
-      DefinitionUri: statemachine/messaging.asl.json
-      DefinitionSubstitutions:
-        MessageBedrockFunctionArn: !GetAtt MessageBedrockFunction.Arn
-        ResponseParserFunctionArn: !GetAtt ResponseParserFunction.Arn
-        TelegramResponseFunctionArn: !GetAtt TelegramResponseFunction.Arn
-      Policies:
-      - LambdaInvokePolicy:
-          FunctionName: !Ref MessageBedrockFunction
-      - LambdaInvokePolicy:
-          FunctionName: !Ref ResponseParserFunction
-      - LambdaInvokePolicy:
-          FunctionName: !Ref TelegramResponseFunction
-  StockTradingStateMachine:
-    Type: AWS::Serverless::StateMachine # More info about State Machine Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-statemachine.html
-    Properties:
-      DefinitionUri: statemachine/stock_trader.asl.json
-      DefinitionSubstitutions:
-        StockCheckerFunctionArn: !GetAtt StockCheckerFunction.Arn
-        StockSellerFunctionArn: !GetAtt StockSellerFunction.Arn
-        StockBuyerFunctionArn: !GetAtt StockBuyerFunction.Arn
-        DDBPutItem: !Sub arn:${AWS::Partition}:states:::dynamodb:putItem
-        DDBTable: !Ref TransactionTable
-      Events:
-        HourlyTradingSchedule:
-          Type: Schedule # More info about Schedule Event Source: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-property-statemachine-schedule.html
-          Properties:
-            Description: Schedule to run the stock trading state machine every hour
-            Enabled: false # This schedule is disabled by default to avoid incurring charges.
-            Schedule: rate(1 hour)
-      Policies: # Find out more about SAM policy templates: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
-      - LambdaInvokePolicy:
-          FunctionName: !Ref StockCheckerFunction
-      - LambdaInvokePolicy:
-          FunctionName: !Ref StockSellerFunction
-      - LambdaInvokePolicy:
-          FunctionName: !Ref StockBuyerFunction
-      - DynamoDBWritePolicy:
-          TableName: !Ref TransactionTable
-
-  StockCheckerFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html
-    Properties:
-      CodeUri: functions/stock_checker/
-      Handler: app.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-
-  StockSellerFunction:
+  OGMonolithFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: functions/stock_seller/
+      CodeUri: functions/OG
       Handler: app.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-
-  StockBuyerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: functions/stock_buyer/
-      Handler: app.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-
-  MessageBedrockFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: functions/message_bedrock/
-      Handler: app.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-      # Bedrock Full Access Policy
-      Policies:
-      - Statement:
-        - Effect: Allow
-          Action:
-          - bedrock:*
-          Resource: '*'
-    
-  ResponseParserFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: functions/response_parser/
-      Handler: app.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-
-  TelegramResponseFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: functions/telegram_response/
-      Handler: app.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
-
-  MonolithFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: functions
-      Handler: monolith.lambda_handler
       Runtime: python3.12
       Architectures:
       - x86_64
@@ -122,23 +19,27 @@ Resources:
             Action:
             - bedrock:*
             Resource: '*'
+        - Statement:
+          - Effect: Allow
+            Action:
+            - s3:*
+            Resource: '*'
       Events:
         ApiEvent:
           Type: Api
           Properties:
             Path: /
             Method: post
+      Environment:
+        Variables:
+          BOT_TOKEN: 8073759396:AAFZQOzXGsyc6VZ90ZKUp5gzohj8TYqG0MU
+          BUCKET_NAME: !Ref S3Bucket
             
 
-  TransactionTable:
-    Type: AWS::Serverless::SimpleTable # More info about SimpleTable Resource: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-simpletable.html
+  S3Bucket:
+    Type: AWS::S3::Bucket
     Properties:
-      PrimaryKey:
-        Name: Id
-        Type: String
-      ProvisionedThroughput:
-        ReadCapacityUnits: 1
-        WriteCapacityUnits: 1
+      BucketName: !Join ['',[!Ref 'AWS::AccountId','-bedrockstore-',!Ref 'AWS::Region']]
 
   ApplicationResourceGroup:
     Type: AWS::ResourceGroups::Group
@@ -157,13 +58,9 @@ Outputs:
   # StockTradingStateMachineHourlyTradingSchedule is an implicit Schedule event rule created out of Events key under Serverless::StateMachine
   # Find out more about other implicit resources you can reference within SAM
   # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-generated-resources.html
-  StockTradingStateMachineArn:
-    Description: Stock Trading State machine ARN
-    Value: !Ref StockTradingStateMachine
-  StockTradingStateMachineRoleArn:
-    Description: IAM Role created for Stock Trading State machine based on the specified
-      SAM Policy Templates
-    Value: !GetAtt StockTradingStateMachineRole.Arn
+  OGMonolithFunctionArn:
+    Description: Monolith Function ARN
+    Value: !GetAtt OGMonolithFunction.Arn
 # # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
