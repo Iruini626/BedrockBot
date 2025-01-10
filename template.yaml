@@ -1,73 +1,185 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  BedrockBot
+  TelegramBedrockBot
 
-  Sample SAM Template for BedrockBot
+  A serverless interface between Telegram and Bedrock.
+
+Globals:
+  Function:
+    Timeout: 90
+    Runtime: python3.13
+    Architectures:
+      - x86_64
+    CodeUri: functions/
+    MemorySize: 512
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+
 Resources:
-  OGMonolithFunction:
+  # EventBridge
+  EventBusLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/events/${AWS::StackName}"
+  
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: TelegramBedrockBotEventBus
+
+  EventBusLog:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: BusLogging
+      EventBusName: !Ref EventBus
+      State: ENABLED
+      EventPattern:
+        # Match all events
+        account:
+          - !Sub ${AWS::AccountId}
+      Targets:
+        - Id: EventBusLog
+          Arn: !GetAtt EventBusLogGroup.Arn
+
+  # Rest API
+  TelegramBedrockAPIRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "apigateway.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: WriteEventBridge
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              Action:
+                - events:PutEvents
+              Effect: Allow
+              Resource:
+                - !GetAtt EventBus.Arn
+
+  TelegramBedrockAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: TelegramBedrockBotAPI
+      StageName: prod
+      TracingEnabled: true
+      EndpointConfiguration: EDGE
+      DefinitionBody:
+        openapi: 3.0.1
+        info:
+          title: TelegramBedrockBotAPI
+        paths:
+          /:
+            post:
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: OK
+              x-amazon-apigateway-integration:
+                type: aws
+                httpMethod: POST
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:events:action/PutEvents"
+                requestTemplates:
+                  application/json: !Sub |
+                    #set($context.requestOverride.header.X-Amz-Target = "AWSEvents.PutEvents")
+                    #set($context.requestOverride.header.Content-Type = "application/x-amz-json-1.1")
+                    #set($body = $util.parseJson($input.body))
+                    #set($inputRoot= $input.path('$'))
+                    {
+                        "Entries":[{
+                            "Detail": "$util.escapeJavaScript($input.body).replaceAll("\\'","'")",
+                            "EventBusName":"${EventBus}",
+                            "Source":"telegram-bot",
+                            "DetailType":"json"
+                            #if($body.message.entities)
+                            ,"Resources":["$body.message.entities[0].type"]
+                            #end
+                            }]
+                    }
+                responses:
+                  default:
+                    statusCode: "200"
+                passthroughBehavior: when_no_match
+                credentials: !GetAtt TelegramBedrockAPIRole.Arn
+  
+  # S3 Store for Config and History
+  ChatStoreBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join ['',[!Ref 'AWS::AccountId','-bedrockstore']]
+
+  
+  # Functions
+  BedrockConfigSetterFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: functions/OG
-      Handler: app.lambda_handler
-      Runtime: python3.12
-      Architectures:
-      - x86_64
+      Description: Set the config for the Bedrock bot
+      Handler: setConfig.lambda_handler
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref ChatStoreBucket
+          BOT_TOKEN: 8073759396:AAFZQOzXGsyc6VZ90ZKUp5gzohj8TYqG0MU
       Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ChatStoreBucket
+      Events:
+        EventBridge:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref EventBus
+            RuleName: config
+            Pattern:
+              source: 
+                - telegram-bot
+              resources: 
+                - bot_command
+              detail-type:
+                - json
+
+  BedrockConverseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Converse with Bedrock
+      Handler: main.lambda_handler
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref ChatStoreBucket
+          BOT_TOKEN: 8073759396:AAFZQOzXGsyc6VZ90ZKUp5gzohj8TYqG0MU
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ChatStoreBucket
         - Statement:
           - Effect: Allow
             Action:
             - bedrock:*
             Resource: '*'
-        - Statement:
-          - Effect: Allow
-            Action:
-            - s3:*
-            Resource: '*'
       Events:
-        ApiEvent:
-          Type: Api
+        EventBridge:
+          Type: EventBridgeRule
           Properties:
-            Path: /
-            Method: post
-      Environment:
-        Variables:
-          BOT_TOKEN: 8073759396:AAFZQOzXGsyc6VZ90ZKUp5gzohj8TYqG0MU
-          BUCKET_NAME: !Ref S3Bucket
-            
-
-  S3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Join ['',[!Ref 'AWS::AccountId','-bedrockstore-',!Ref 'AWS::Region']]
-
-  ApplicationResourceGroup:
-    Type: AWS::ResourceGroups::Group
-    Properties:
-      Name:
-        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
-      ResourceQuery:
-        Type: CLOUDFORMATION_STACK_1_0
-  ApplicationInsightsMonitoring:
-    Type: AWS::ApplicationInsights::Application
-    Properties:
-      ResourceGroupName:
-        Ref: ApplicationResourceGroup
-      AutoConfigurationEnabled: 'true'
-Outputs:
-  # StockTradingStateMachineHourlyTradingSchedule is an implicit Schedule event rule created out of Events key under Serverless::StateMachine
-  # Find out more about other implicit resources you can reference within SAM
-  # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-specification-generated-resources.html
-  OGMonolithFunctionArn:
-    Description: Monolith Function ARN
-    Value: !GetAtt OGMonolithFunction.Arn
-# # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
-Globals:
-  Function:
-    Timeout: 90
-    Tracing: Active
-    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
-    LoggingConfig:
-      LogFormat: JSON
-  Api:
-    TracingEnabled: true
+            EventBusName: !Ref EventBus
+            RuleName: converse
+            Pattern:
+              source: 
+                - telegram-bot
+              resources: 
+                - ""
+              detail-type:
+                - json
+              detail:
+                message:
+                  chat:
+                    username:
+                      - Iruini626

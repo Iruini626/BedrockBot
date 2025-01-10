@@ -24,21 +24,23 @@ def lambda_handler(event,context):
     ''' Main Logic '''
 
     # Pull input from event
-    event_body = json.loads(event['body'])
-    chat_id = event_body['message']['chat']['id']
-    username = event_body['message']['chat']['username']
-    user_input = event_body['message']['text']
+    event_body = event
+    print(event_body)
+    print(type(event_body))
+    details = event_body['detail']
+    print(details)
+    print(type(details))
+    chat_id = details['message']['chat']['id']
+    username = details['message']['chat']['username']
+    user_input = details['message']['text']
 
     logger.info(f"Chat ID: {chat_id}, Username: {username}, User Prompt: {user_input}")
 
-    if user_input == "/newchat":
+    # Get message history from S3
+    try:
+        message_history = json.loads(bucket.Object(f"{chat_id}-history.json").get()['Body'].read().decode('utf-8'))
+    except:
         message_history = []
-    else:
-        # Get message history from S3
-        try:
-            message_history = json.loads(bucket.Object(f"{chat_id}-history.json").get()['Body'].read().decode('utf-8'))
-        except:
-            message_history = []
 
     # Prepare Message
     message = message_prep(user_input)
