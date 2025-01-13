@@ -11,9 +11,9 @@ bucket = s3.Bucket(os.environ["BUCKET_NAME"])
 
 model_selection = ["/claude","/nova","/llama"]
 model_map = {
-    "/claude": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "/claude": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
     "/nova": "amazon.nova-pro-v1:0",
-    "/llama": "meta.llama3-3-70b-instruct-v1:0"
+    "/llama": "us.meta.llama3-3-70b-instruct-v1:0"
 }
 config_choices = ["/temperature","/maxtokens","/topp","/reset","/newchat"]
 
@@ -54,9 +54,10 @@ def lambda_handler(event, context):
         elif command_type == "/topp":
             config["topP"] = float(parts[1])
         elif command_type == "/reset":
-            config = {"temperature":0.9, "maxTokens":2048, "topP":0.9}
+            config = {"temperature":float(0.9), "maxTokens":2048, "topP":float(0.9)}
         elif command_type == "/newchat":
             bucket.put_object(Key=f"{chat_id}-history.json", Body=json.dumps([]))
+            send_telegram("Message History Cleared", chat_id)
 
         # Save updated config to S3
         bucket.put_object(Key=f"{chat_id}-config.json", Body=json.dumps(config))

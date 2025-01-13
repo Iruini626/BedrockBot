@@ -15,7 +15,7 @@ def get_config(chat_id):
         model = bucket.Object(f"{chat_id}-model.json").get()['Body'].read().decode('utf-8')
         model = json.loads(model)
     except:
-        config = {"temperature":0.9, "maxTokens":2048, "topP":0.9}
+        config = {"temperature":float(0.9), "maxTokens":2048, "topP":float(0.9)}
         model = {"modelId":"anthropic.claude-3-sonnet-20240229-v1:0"}
         bucket.put_object(Key=f"{chat_id}-config.json", Body=json.dumps(config))
         bucket.put_object(Key=f"{chat_id}-model.json", Body=json.dumps(model))

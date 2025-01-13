@@ -3,6 +3,7 @@ import boto3
 import logging
 import urllib3
 import os
+from getConfig import get_config
 
 BOT_TOKEN: str = os.environ["BOT_TOKEN"]
 BUCKET_NAME: str = os.environ["BUCKET_NAME"]
@@ -24,10 +25,7 @@ def lambda_handler(event,context):
     ''' Main Logic '''
 
     # Pull input from event
-    event_body = event
-    print(event_body)
-    print(type(event_body))
-    details = event_body['detail']
+    details = event['detail']
     print(details)
     print(type(details))
     chat_id = details['message']['chat']['id']
@@ -35,6 +33,9 @@ def lambda_handler(event,context):
     user_input = details['message']['text']
 
     logger.info(f"Chat ID: {chat_id}, Username: {username}, User Prompt: {user_input}")
+
+    # Get config from s3
+    config, model = get_config(chat_id)
 
     # Get message history from S3
     try:
@@ -50,8 +51,9 @@ def lambda_handler(event,context):
 
     # Send to Bedrock
     response = bedrock.converse_stream(
-        modelId="anthropic.claude-3-sonnet-20240229-v1:0",
-        messages=message_history
+        modelId=model["modelId"],
+        messages=message_history,
+        inferenceConfig=config
     )
 
     stream_response = response.get('stream')
