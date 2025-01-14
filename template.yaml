@@ -103,8 +103,10 @@ Resources:
                             "EventBusName":"${EventBus}",
                             "Source":"telegram-bot",
                             "DetailType":"json"
-                            #if($body.message.entities)
+                            #if($body.message.entities && $body.message.entities[0].type == "bot_command")
                             ,"Resources":["$body.message.entities[0].type"]
+                            #else
+                            ,"Resources":[""]
                             #end
                             }]
                     }
@@ -174,7 +176,7 @@ Resources:
             Pattern:
               source: 
                 - telegram-bot
-              resources: 
+              resources:
                 - ""
               detail-type:
                 - json
