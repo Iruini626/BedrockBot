@@ -3,33 +3,29 @@
     "id": "f296db61-26bd-7fbc-0cea-27b00ef206e3",
     "detail-type": "json",
     "source": "telegram-bot",
-    "account": "086368997405",
     "time": "2025-01-09T09:05:46Z",
-    "region": "us-east-1",
     "resources": [
       "bot_command"
     ],
     "detail": {
-      "update_id": 128582174,
       "message": {
         "message_id": 182,
         "from": {
-          "id": 46307554,
           "is_bot": false,
-          "first_name": "Ariel",
-          "last_name": "Yip",
-          "username": "Iruini626",
+          "first_name": "John",
+          "last_name": "Doe",
+          "username": "Username",
           "language_code": "en"
         },
         "chat": {
-          "id": 46307554,
-          "first_name": "Ariel",
-          "last_name": "Yip",
-          "username": "Iruini626",
+          "id": 11111111,
+          "first_name": "John",
+          "last_name": "Doe",
+          "username": "Username",
           "type": "private"
         },
         "date": 1736413545,
-        "text": "/claude",
+        "text": "/command",
         "entities": [
           {
             "offset": 0,
