@@ -132,7 +132,7 @@ Resources:
       Environment:
         Variables:
           BUCKET_NAME: !Ref ChatStoreBucket
-          BOT_TOKEN: 8073759396:AAFZQOzXGsyc6VZ90ZKUp5gzohj8TYqG0MU
+          BOT_TOKEN: //PLEASE INSERT YOUR TELEGRAM BOT TOKEN HERE//
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref ChatStoreBucket
